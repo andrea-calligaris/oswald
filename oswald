@@ -40,7 +40,8 @@ dir_parameter_exists=false
 site_title=""
 markdown_converter=""
 
-site_SOURCE_dir=
+PROJECT_dir=
+SOURCE_dir=
 OUTPUT_dir=
 
 quit_with_usage_help()
@@ -142,7 +143,7 @@ generate_HTML_menu_drafts()
 			>> "$draft_main_menu_fpath"
 	fi
 
-	cd "$site_SOURCE_dir" || exit 1
+	cd "$SOURCE_dir" || exit 1
 	find . -type d ! -path "." ! -path "./*/*" \
 		| sed -E "$RegEx_remove_leading_dot_and_slash" \
 		| sort -ndf | while read -r TLD;
@@ -153,7 +154,7 @@ generate_HTML_menu_drafts()
 
 		TLD_readable_name=$( get_human_readable_pagetitle \
 			"$TLD_name_no_prefix" \
-			"$site_SOURCE_dir/$TLD/index.md" )
+			"$SOURCE_dir/$TLD/index.md" )
 
 		# Add entry to the main menu.
 		printf "  <a href=\"/%s/\">%s</a>\n" \
@@ -424,24 +425,24 @@ fi
 
 # Set the project directory.
 if [ $dir_parameter_exists = false ]; then
-	site_PROJECT_dir="$PWD"
+	PROJECT_dir="$PWD"
 else
-	site_PROJECT_dir=$( readlink -f "$@" )
+	PROJECT_dir=$( readlink -f "$@" )
 fi
 
-if [ ! -d "$site_PROJECT_dir" ]; then
+if [ ! -d "$PROJECT_dir" ]; then
 	quit_with_error_msg 'No such file or directory.'
 fi
 
 # Run/include the configuration file.
-if [ ! -f "$site_PROJECT_dir/site.conf" ]; then
+if [ ! -f "$PROJECT_dir/site.conf" ]; then
 	quit_with_error_msg "Cannot find 'site.conf' in the project directory"
 fi
-. "$site_PROJECT_dir"/site.conf
+. "$PROJECT_dir"/site.conf
 
 # Set paths.
-site_SOURCE_dir="$site_PROJECT_dir/pages.SOURCE"
-OUTPUT_dir="$site_PROJECT_dir/pages.static"
+SOURCE_dir="$PROJECT_dir/pages.SOURCE"
+OUTPUT_dir="$PROJECT_dir/pages.static"
 
 # Option "--debug".
 if [ $debug = true ]; then
@@ -461,7 +462,7 @@ clean_output_folder_and_files "$OUTPUT_dir"
 # Setup the directory structure for the output.
 printf "Creating directory tree...\n"
 mkdir -p "$OUTPUT_dir"
-cp -rf "$site_SOURCE_dir"/* "$OUTPUT_dir"
+cp -rf "$SOURCE_dir"/* "$OUTPUT_dir"
 chmod -R 755 "$OUTPUT_dir"
 # Remove number prefixes.
 find "$OUTPUT_dir" -depth -type d | while read -r dir; do
@@ -473,11 +474,11 @@ done
 
 # Copy some required files to the output folder.
 printf "Copying files...\n"
-if [ -f "$site_PROJECT_dir/style.css" ]; then
-	cp "$site_PROJECT_dir/style.css" "$OUTPUT_dir/"
+if [ -f "$PROJECT_dir/style.css" ]; then
+	cp "$PROJECT_dir/style.css" "$OUTPUT_dir/"
 fi
-if [ -f "$site_PROJECT_dir/favicon.png" ]; then
-	cp "$site_PROJECT_dir/favicon.png" "$OUTPUT_dir/"
+if [ -f "$PROJECT_dir/favicon.png" ]; then
+	cp "$PROJECT_dir/favicon.png" "$OUTPUT_dir/"
 fi
 
 # Generate drafts for the ordered main menu and the ordered sub-menus.
