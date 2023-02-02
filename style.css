@@ -1,0 +1,200 @@
+body {
+	background-color: #000;
+	color: #919191;
+	font-family: sans-serif;
+	padding: 0;
+	margin: 0 auto;
+	max-width: 800px;
+}
+
+h1, h2, h3, h4 {
+	font-weight: 600;
+	margin: 1em 1ex 0.5ex 0;
+}
+
+h1 {
+	font-size: 1.4em;
+}
+
+h2 {
+	font-size: 1.2em;
+}
+
+h3 {
+	font-size: 1.1em;
+}
+
+h4 {
+	font-size: 1.0em;
+}
+
+a {
+	color: #2192F0;
+}
+
+a:hover, a:visited:hover {
+	color: #1768AB;
+}
+
+a:visited {
+	color: #3D5C78;
+}
+
+
+/* Accessibility and compatibility */
+
+.no-css {
+	display: none;
+}
+
+
+/* Header */
+
+#header {
+	background-color: #282828;
+	clear: both;
+	margin: 0;
+	padding: 1.0ex 5%;
+}
+
+#header a {
+	color: #eeeeee;
+	font-weight: 600;
+	font-size: 1.4em;
+	text-decoration: none;
+	margin: 0;
+	padding: 0;
+}
+
+#header a:hover {
+	color: gray;
+}
+
+
+/* Menu */
+
+#menu {
+	background-color: #8D918D;
+	clear: both;
+	margin: 0;
+	padding: 2ex 5%;
+}
+
+#menu a {
+	color: black;
+	text-decoration: none;
+	padding: 2ex 1ex;
+	white-space: nowrap;
+}
+
+#menu a:hover {
+	text-decoration: underline;
+}
+
+
+/* Sub-menu / Sidebar */
+
+#nav {
+	float: left;
+	padding: 0;
+	width: 200px;
+}
+
+#nav ul {
+	list-style-type: none;
+	margin: 0;
+	padding: 0 0 0 2ex;
+}
+
+#nav li {
+	margin: 1em 0 0 0;
+	padding: 0;
+}
+
+#nav ul li a {
+	text-decoration: none;
+}
+
+
+/* Current path */
+
+a.current-ancestor,
+a.current-page {
+	font-weight: bold;
+}
+
+#menu a.current-ancestor {
+	background-color: #686868;
+}
+
+#menu a.current-page {
+	background-color: #565051;
+	box-shadow:inset 0px 0px 0px 3px #3A3B3C;
+}
+
+#nav a.current-page {
+	border-style: solid;
+	border-width: 1px;
+	padding: 2px;
+}
+
+
+/* Content */
+
+#content {
+	clear: both;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	min-height: 300px;
+}
+
+
+/* Main content */
+
+#main {
+	overflow: hidden;
+}
+
+
+/* Devices */
+
+@media (prefers-color-scheme: light) {
+	/*
+	body {
+		color: ?;
+		background: ?;
+	}
+	a {
+		color: ?;
+	}
+	a:hover, a:visited:hover {
+		color: ?;
+	}
+	a:visited {
+		color: ?;
+	}
+	*/
+}
+
+@media (prefers-contrast: more) {
+	/* ... */
+}
+
+@media screen and (max-width: 50em) { /* tight window */
+	#content {
+		overflow: auto;
+		margin: 0 5%;
+	}
+	#nav {
+		float: none;
+
+	}
+}
+
+@media print {
+	body{
+		max-width: none;
+	}
+}
+

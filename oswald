@@ -1,0 +1,514 @@
+#!/bin/dash
+#
+# Oswald - Static HTML minimalist site builder
+# See "license.txt" file for copyright and license details.
+
+# TLD	= top level directory (those appearing in the main menu).
+# SUBD	= sub-directory (those appearing in the sidebar).
+
+# quit_with_usage_help()
+# quit_with_error_msg()
+# clean_output_folder_and_files()
+# get_folder_name_without_prefix()
+# get_page_main_content_in_html()
+# get_human_readable_pagetitle ()
+# generate_HTML_menu_drafts()
+# generate_HTML_submenu_draft_for_given_TLD()
+# generate_custom_main_menu()
+# generate_custom_submenu()
+# write_html_page()
+
+readonly RegEx_remove_prefixes='s/^[0-9]+-//'
+readonly RegEx_remove_prefixes_root_too='s/^[0-9]+-//; s/\/[0-9]+-/\//g'
+readonly RegEx_remove_leading_dot_and_slash='s/^\.\///'
+readonly RegEx_remove_last_dir='s/\/[^\/]+(\/?)$//'
+readonly RegEx_dashes_to_spaces='s/[_-]/ /g'
+readonly RegEx_has_markdown_title='^# .+'
+readonly RegEx_get_markdown_title='s/# //'
+
+this_program_filename=""
+
+# Debug mode, true or false.
+debug=false
+
+# Options.
+clean=false
+verbose=false
+dir_parameter_exists=false
+
+# These variables will be set by the config file.
+site_title=""
+markdown_converter=""
+
+site_SOURCE_dir=
+OUTPUT_dir=
+
+quit_with_usage_help()
+{
+	cat <<EOF
+Usage: $this_program_filename [options] [directory]
+Build a static website from markdown files, allowing for menu ordering
+by using prefixes.
+POSIX and fully compatible with sbase (<https://core.suckless.org/sbase/>)
+
+  -c, --clean           don't build the site, just remove old output
+  -v, --verbose         print more info
+  -d, --debug		leave some temporary files, and print debug info to the
+                          console and to the final HTML
+
+[directory] is the folder of the project of the website. Inside,
+the program will search for the 'pages.SOURCE' folder and build a static
+website to the 'pages.static' folder.
+
+The filenames in 'pages.SOURCE' should preferably be in the format:
+  10-home/index.md
+  20-about/index.md
+to get ordered menus.
+
+The folder name is the URL path. The human readable title of the folder
+is read from the title of the markdown file ('# Title').
+EOF
+	exit 0
+}
+
+quit_with_error_msg()
+{
+	printf '%s: Error: %s\n' "$this_program_filename" "$1" >&2
+	printf 'Try "%s --help" for more information.\n' \
+		"$this_program_filename" >&2
+	exit 1
+}
+
+clean_output_folder_and_files()
+{
+	printf "Removing old output...\n"
+	# Only the content, so the local server can keep running
+	# on the output folder.
+	rm -Rf "${1:?}"/*
+}
+
+get_folder_name_without_prefix()
+{
+	src_name=$1
+
+	out_basename=$( basename "$src_name" | sed -E "$RegEx_remove_prefixes" )
+	if test "$( basename "$src_name" )" != "$out_basename"; then
+		src_name="$( dirname "$src_name" )/$out_basename"
+	fi
+	echo "$src_name"
+}
+
+get_page_main_content_in_html()
+{
+	# Execute the program to convert from markdown.
+	if [ $debug = true ]; then
+		echo ">>>> Launching the markdown converter..."
+	fi
+	$markdown_converter ".$1"
+}
+
+get_human_readable_pagetitle ()
+{
+	folder_name_no_prefix="$1"
+	index_md_path="$2" # "index.md" file to read the title from.
+
+	readable_name=$( head -n 1 "$index_md_path" \
+		| grep -E "$RegEx_has_markdown_title" )
+	if [ -z "$readable_name" ]; then
+		# Just use the filename, properly edited.
+		readable_name=$( echo "$folder_name_no_prefix" \
+			| sed -E "$RegEx_dashes_to_spaces" )
+		first_letter=$( echo "$readable_name" | cut -nc 1 )
+		first_letter_upper=$( echo "$first_letter" \
+			| tr '[:lower:]' '[:upper:]' )
+		readable_name=$( echo "$readable_name" \
+			| sed "s/^$first_letter/$first_letter_upper/" )
+	else
+		# Use the title without the markdown symbol '#'.
+		readable_name=$( echo "$readable_name" \
+			| sed -E "$RegEx_get_markdown_title" )
+	fi
+	echo "$readable_name"
+}
+
+generate_HTML_menu_drafts()
+{
+	echo "Generating the menus..."
+	draft_main_menu_fpath="$OUTPUT_dir/main-menu.html.tmp"
+
+	echo "<hr class=\"no-css\">" >> "$draft_main_menu_fpath"
+	if true; then # You may or may not want a home link.
+		echo "  <a href=\"/\">Home</a>" \
+			>> "$draft_main_menu_fpath"
+	fi
+
+	cd "$site_SOURCE_dir" || exit 1
+	find . -type d ! -path "." ! -path "./*/*" \
+		| sed -E "$RegEx_remove_leading_dot_and_slash" \
+		| sort -ndf | while read -r TLD;
+	do
+
+		TLD_name_no_prefix=$( basename "$TLD" \
+			| sed -E "$RegEx_remove_prefixes" )
+
+		TLD_readable_name=$( get_human_readable_pagetitle \
+			"$TLD_name_no_prefix" \
+			"$site_SOURCE_dir/$TLD/index.md" )
+
+		# Add entry to the main menu.
+		printf "  <a href=\"/%s/\">%s</a>\n" \
+			"$TLD_name_no_prefix" "$TLD_readable_name" \
+			>> "$draft_main_menu_fpath"
+
+		# Add entries to the submenu for this top level directory.
+		generate_HTML_submenu_draft_for_given_TLD \
+			"$TLD" "$TLD_name_no_prefix" "$TLD_readable_name"
+
+	done
+	echo "<hr class=\"no-css\">" >> "$draft_main_menu_fpath"
+	cd ..
+}
+
+generate_HTML_submenu_draft_for_given_TLD()
+{
+	TLD="$1"
+	TLD_name_no_prefix="$2"
+	TLD_readable_name="$3"
+
+	subdirs_count=$( find "$TLD" -type d ! -path "$TLD" | wc -l );
+	if [ "$subdirs_count" -lt 1 ]; then
+		return
+	fi
+
+	echo "  Creating sub-menu for $TLD_readable_name..."
+	draft_submenu_filepath=$( printf "%s/%s/sub-menu.html.tmp" \
+		"$OUTPUT_dir" "$TLD_name_no_prefix" )
+	previous_depth_count=1
+	just_started=true
+	printf "<ul>"  >> "$draft_submenu_filepath"
+
+	# Delve into subfolders.
+	find "$TLD" -type d \
+		! -path "$TLD" | sort -ndf | while read -r SUBD_folder;
+	do
+
+		SUBD_basename_no_prefix=$( basename "$SUBD_folder" \
+			| sed -E "$RegEx_remove_prefixes" )
+		SUBD_no_prefixes=$( echo "$SUBD_folder" \
+			| sed -E "$RegEx_remove_prefixes_root_too")
+		SUBD_depth_count=$(( $( echo "$SUBD_no_prefixes" \
+			| tr '/' '\n' | wc -l ) -1 ))
+
+		SUBD_readable_name=$( get_human_readable_pagetitle \
+			"$SUBD_basename_no_prefix" "$SUBD_folder/index.md" )
+
+		# Add entry to the sub-menu.
+		close_previous=$(printf "</li>\n")
+		if [ "$just_started" ]; then
+			close_previous=""
+			just_started=false
+		fi
+		spaces=$( yes '  ' | head -n "$SUBD_depth_count" | tr -d '\n' )
+		if [ "$SUBD_depth_count" -gt "$previous_depth_count" ]; then
+			close_previous=$( printf "\n%s<ul>\n" "$spaces" )
+		elif [ "$SUBD_depth_count" -lt "$previous_depth_count" ]; then
+			close_previous=$( printf "</li>\n%s  </ul>\n%s</li>\n" \
+				"$spaces" "$spaces" )
+		fi
+
+		printf "%s\n%s<li><a href=\"%s\">%s</a>" "$close_previous" \
+			"$spaces" "/$SUBD_no_prefixes/" "$SUBD_readable_name" \
+			>> "$draft_submenu_filepath"
+
+		previous_depth_count=$SUBD_depth_count
+	done
+
+	printf "</li>\n</ul>\n" >> "$draft_submenu_filepath"
+}
+
+generate_custom_main_menu()
+{
+	tmp_MD_page=$1
+
+	class_name="current-ancestor"
+	path=$( echo "$tmp_MD_page" | sed 's/index.md//' )
+	path_depth_count=$( echo "$path" | tr '/' '\n' | wc -l )
+	path_depth_count=$(( path_depth_count - 2 ))
+	if [ $path_depth_count -lt 2 ]; then
+		class_name="current-page"
+	fi
+
+	top_ancestor=$( echo "$tmp_MD_page" | cut -nd '/' -f 2 )
+	draft_main_menu_fpath="$OUTPUT_dir/main-menu.html.tmp"
+
+	main_menu_HTML_out=$( cat "$draft_main_menu_fpath" )
+	ancestor_path="/$top_ancestor/"
+
+	modified_link=""
+	if [ "$tmp_MD_page" = "/index.md" ]; then
+		modified_link="<a class=\"$class_name\" href=\"/\">"
+		ancestor_path="/"
+	else
+		modified_link=$( printf "<a class=\"%s\" href=\"%s\">" \
+			"$class_name" "$ancestor_path" )
+	fi
+
+	main_menu_HTML_out=$( \
+		echo "$main_menu_HTML_out" \
+		| sed "s@<a href=\"$ancestor_path\">@$modified_link@" )
+
+	echo "$main_menu_HTML_out"
+}
+
+generate_custom_submenu()
+{
+	tmp_MD_page=$1
+
+	top_ancestor=$( echo "$tmp_MD_page" | cut -nd '/' -f 2 )
+	submenu_draft="$OUTPUT_dir/$top_ancestor/sub-menu.html.tmp"
+
+	submenu_HTML_out=$( cat "$submenu_draft" )
+	path=$( echo "$tmp_MD_page" | sed 's/index.md//' )
+
+	modified_link="<a class=\"current-page\" href=\"$path\">"
+	submenu_HTML_out=$( echo "$submenu_HTML_out" \
+		| sed "s@<a href=\"$path\">@$modified_link@" )
+
+	# Highlight all ancestors by looping backwards in the path string.
+	while [ "$path" != "/$top_ancestor" ] \
+		&& [ "$path" != "/$top_ancestor/" ] && [ -n "$path" ]; do
+		path=$( echo "$path" | sed -E "$RegEx_remove_last_dir" )
+		modified_link="<a class=\"current-ancestor\" href=\"$path\">"
+		submenu_HTML_out=$( echo "$submenu_HTML_out" \
+			| sed "s@<a href=\"$path/\">@$modified_link@" )
+	done
+
+	echo "$submenu_HTML_out"
+}
+
+write_html_page()
+{
+	MD_page="$1"
+
+	page_title="$site_title"
+	if [ "$MD_page" != "/index.md" ]; then
+		# Not the home page.
+		dir=$( echo "$1" | sed 's/index.md//' )
+		dir_name=$( basename "$dir" )
+		page_title=$( get_human_readable_pagetitle "$dir_name" ".$1" )
+		page_title="$page_title – $site_title"
+	fi
+
+	# Header.
+	cat << _header_
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<title>${page_title}</title>
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="stylesheet" type="text/css" href="/style.css">
+</head>
+
+<body>
+
+<div id="header">
+<a href="/">${site_title}</a>
+<p class="no-css"><a href="#main">Skip to content</a></p>
+</div>
+
+_header_
+	if [ $debug = true ]; then
+		echo "MD_page: $MD_page<br>"
+	fi
+
+	# Main menu.
+	if [ $debug = true ]; then
+		echo ">> Main menu step<br>"
+	fi
+	echo "<div id=\"menu\">"
+	generate_custom_main_menu "$MD_page"
+	echo "</div>"
+	echo
+
+	echo
+	echo "<div id=\"content\">"
+	echo
+
+	# Sub-menu.
+	if [ $debug = true ]; then
+		echo ">> Sub-menu step<br>"
+	fi
+	if [ "$MD_page" = "/index.md" ]; then
+		# Have here a specific submenu for the home page, if you want.
+		:
+	else
+		top_ancestor=$( echo "$tmp_MD_page" | cut -nd '/' -f 2 )
+		submenu_abs_path="$OUTPUT_dir/$top_ancestor/sub-menu.html.tmp"
+		if [ $debug = true ]; then
+			echo "submenu_abs_path: $submenu_abs_path<br>"
+		fi
+		if [ -f "$submenu_abs_path" ]; then
+			echo "<div id=\"nav\">"
+			generate_custom_submenu "$MD_page"
+			echo "</div>"
+			echo
+		fi
+	: # Have here some sub-menu that is common for all pages if you want.
+	# echo "<hr/>"
+	# ...
+	# echo
+	fi
+
+	# Page content.
+	if [ $debug = true ]; then
+		echo ">> Page content step<br>";
+	fi
+	echo "<div id=\"main\">"
+	get_page_main_content_in_html "$MD_page"
+	echo "</div>"
+	echo
+
+	echo "</div>" # content
+	echo
+	echo
+
+	# Close HTML
+	echo "</body>"
+	echo
+	echo "</html>"
+}
+
+# Get the program name preventing echoing of "./" when running directly.
+this_program_filename=$( basename "$0" )
+
+# Parse options.
+while :; do
+	case $1 in
+	-h|--help)
+		quit_with_usage_help
+		;;
+	-d|--debug)
+		debug=true
+		;;
+	-c|--clean)
+		clean=true
+		;;
+	-v|--verbose)
+		verbose=true
+		;;
+	# Double-dash: end of options.
+	--)
+		shift
+		break
+		;;
+	-?*)
+		err=$( printf 'Invalid option "%s"\n' "$1" )
+		quit_with_error_msg "$err"
+		;;
+	# Default case: no (more) options.
+	*)
+		break
+	esac
+	shift
+done
+
+# Check the parameters after the options.
+if [ "$#" -gt 0 ]; then
+	dir_parameter_exists=1
+fi
+if [ "$#" -gt 1 ]; then
+	quit_with_error_msg 'Too many parameters.'
+fi
+
+# Set the project directory.
+if [ $dir_parameter_exists = false ]; then
+	site_PROJECT_dir="$PWD"
+else
+	site_PROJECT_dir=$( readlink -f "$@" )
+fi
+
+if [ ! -d "$site_PROJECT_dir" ]; then
+	quit_with_error_msg 'No such file or directory.'
+fi
+
+# Run/include the configuration file.
+if [ ! -f "$site_PROJECT_dir/site.conf" ]; then
+	quit_with_error_msg "Cannot find 'site.conf' in the project directory"
+fi
+. "$site_PROJECT_dir"/site.conf
+
+# Set paths.
+site_SOURCE_dir="$site_PROJECT_dir/pages.SOURCE"
+OUTPUT_dir="$site_PROJECT_dir/pages.static"
+
+# Option "--debug".
+if [ $debug = true ]; then
+	echo " -- DEBUG MODE is ON --"
+fi
+
+# Option "--clean".
+if [ $clean = true ]; then
+	clean_output_folder_and_files "$OUTPUT_dir"
+	printf "Done.\n"
+	exit 0
+fi
+
+# Clean old files.
+clean_output_folder_and_files "$OUTPUT_dir"
+
+# Setup the directory structure for the output.
+printf "Creating directory tree...\n"
+mkdir -p "$OUTPUT_dir"
+cp -rf "$site_SOURCE_dir"/* "$OUTPUT_dir"
+chmod -R 755 "$OUTPUT_dir"
+# Remove number prefixes.
+find "$OUTPUT_dir" -depth -type d | while read -r dir; do
+	OUTPUT_dir_name=$( get_folder_name_without_prefix "$dir" )
+	if test "$dir" != "$OUTPUT_dir_name"; then
+		 mv "$dir" "$OUTPUT_dir_name"
+	fi
+done
+
+# Copy some required files to the output folder.
+printf "Copying files...\n"
+if [ -f "$site_PROJECT_dir/style.css" ]; then
+	cp "$site_PROJECT_dir/style.css" "$OUTPUT_dir/"
+fi
+if [ -f "$site_PROJECT_dir/favicon.png" ]; then
+	cp "$site_PROJECT_dir/favicon.png" "$OUTPUT_dir/"
+fi
+
+# Generate drafts for the ordered main menu and the ordered sub-menus.
+generate_HTML_menu_drafts
+
+# Generate the HTML pages from the markdown files.
+cd "$OUTPUT_dir" || exit 1
+if [ "$verbose" = true ]; then
+	echo "Generating pages:"
+else
+	echo "Generating pages..."
+fi
+find . -name '*.md' | while read -r input_MD_page ; do
+	MD_page_no_dot=$( echo "$input_MD_page" | cut -nc 2- )
+	with_changed_extension=$( echo "$MD_page_no_dot" \
+		| sed -E 's|.md$|.html|' )
+	output_html_page="$OUTPUT_dir$with_changed_extension"
+	if [ "$verbose" = true ]; then
+		printf "  Processing: %s\n" "$MD_page_no_dot"
+	fi
+	write_html_page "$MD_page_no_dot" > "$output_html_page"
+done
+echo "Done."
+cd ../
+
+# Finalize.
+if [ $debug = false ]; then
+	find "$OUTPUT_dir" -type f -name "*.md" -exec rm {} \;
+	find "$OUTPUT_dir" -type f -name "*.tmp" -exec rm {} \;
+fi
+find "$OUTPUT_dir" -type f -exec chmod 644 {} \;
+
+exit 0
+

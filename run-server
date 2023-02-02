@@ -1,0 +1,7 @@
+#!/bin/dash
+
+# Run a quark server for testing the website
+
+sudo -v
+sudo quark -p 80 -d pages.static &
+
