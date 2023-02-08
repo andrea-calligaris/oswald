@@ -10,7 +10,7 @@
 # quit_with_error_msg()
 # clean_output_folder_and_files()
 # get_folder_name_without_prefix()
-# get_page_main_content_in_html()
+# print_page_main_content_in_html()
 # get_human_readable_pagetitle ()
 # generate_HTML_menu_drafts()
 # generate_HTML_submenu_draft_for_given_TLD()
@@ -99,7 +99,7 @@ get_folder_name_without_prefix()
 	echo "$src_name"
 }
 
-get_page_main_content_in_html()
+print_page_main_content_in_html()
 {
 	# Execute the program to convert from markdown.
 	if [ $debug = true ]; then
@@ -367,7 +367,7 @@ _header_
 		echo ">> Page content step<br>";
 	fi
 	echo "<div id=\"main\">"
-	get_page_main_content_in_html "$MD_page"
+	print_page_main_content_in_html "$MD_page"
 	echo "</div>"
 	echo
 
