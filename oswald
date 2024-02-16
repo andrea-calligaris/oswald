@@ -1,7 +1,9 @@
 #!/bin/dash
 #
 # Oswald - Static HTML minimalist site builder
-# See "license.txt" file for copyright and license details.
+# POSIX compliant. Compatible with 'sbase' (suckless.org).
+# © Andrea Calligaris; released under the MIT License.
+# See "license-oswald.txt" file for copyright and license details.
 
 # TLD	= top level directory (those appearing in the main menu).
 # SUBD	= sub-directory (those appearing in the sidebar).

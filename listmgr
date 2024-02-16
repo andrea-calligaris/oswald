@@ -3,7 +3,8 @@
 # listmgr - HTML list manager.
 # Utility to elegantly print UL and LI tags while creating an HTML list.
 # POSIX compliant. Compatible with 'sbase' (suckless.org).
-# See "license.txt" file for copyright and license details.
+# © Andrea Calligaris; released under the MIT License.
+# See "license-listmgr.txt" file for copyright and license details.
 # Usage: include the file in your main script to be able to use the functions.
 
 # get_ul_and_li_tags()
