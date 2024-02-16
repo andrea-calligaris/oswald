@@ -1,0 +1,78 @@
+#!/bin/dash
+#
+# listmgr - HTML list manager.
+# Utility to elegantly print UL and LI tags while creating an HTML list.
+# POSIX compliant. Compatible with 'sbase' (suckless.org).
+# See "license.txt" file for copyright and license details.
+# Usage: include the file in your main script to be able to use the functions.
+
+# get_ul_and_li_tags()
+# get_final_ul_and_li_tags()
+
+# Block of spaces for each depth level. Purely visual, for the HTML source.
+SPACES_BLOCK='   '
+
+# Get the required UL and LI tags to be inserted before the current entry of
+# the HTML list. This includes all the necessary closing of previous entries.
+get_ul_and_li_tags()
+{
+	just_started=$1
+	curr_depth_lvl="$2"
+	previous_depth_lvl="$3"
+	is_the_whole_list_closing=${4:-false}
+
+	tags="</li>
+" # Literal new line; ugly, but '\n' doesn't work because it's discarded when at the end.
+
+	spaces=$( yes "$SPACES_BLOCK" | head -n "$curr_depth_lvl" | tr -d '\n' )
+
+	if [ "$just_started" = true ]; then
+		tags="" # No previous entry to close.
+		just_started=false
+	fi
+
+	if [ "$curr_depth_lvl" -gt "$previous_depth_lvl" ]; then
+		tags=$( printf "\n%s<ul>\n%s" "$spaces" "$spaces" )
+	elif [ "$curr_depth_lvl" -lt "$previous_depth_lvl" ]; then
+		tags=$( printf "</li>" )
+		depth_diff=$(( previous_depth_lvl - curr_depth_lvl ))
+		for i in $(seq $depth_diff); do
+			subdcount=$(( previous_depth_lvl - i ))
+			spaces=$( yes "$SPACES_BLOCK" | head -n "$subdcount" | tr -d '\n' )
+			tags=$( printf "%s\n%s%s</ul>\n%s</li>" \
+				"$tags" "$spaces" "$SPACES_BLOCK" "$spaces" )
+		done
+		spaces=$( yes "$SPACES_BLOCK" | head -n "$curr_depth_lvl" | tr -d '\n' )
+		if [ "$is_the_whole_list_closing" = false ]; then
+			tags=$( printf "%s\n%s" "$tags" "$spaces" )
+		else
+			tags=$( printf "%s\n" "$tags" )
+		fi
+	else
+		# Add the required spaces for the next entry.
+		if [ "$is_the_whole_list_closing" = false ]; then
+			tags="${tags}${spaces}"
+		fi
+	fi
+
+	# Append the LI tag for the next entry.
+	if [ "$is_the_whole_list_closing" = false ]; then
+		tags="${tags}<li>"
+	fi
+
+	echo "$tags"
+}
+
+# Once done with the list, all remaining UL and LI tags need to be closed,
+# taking into account the reached depth level.
+get_final_ul_and_li_tags()
+{
+	previous_depth_lvl="$1"
+
+	curr_depth_lvl=1 # Move to the first depth level.
+	ul_and_li_tags=$( get_ul_and_li_tags \
+		false "$curr_depth_lvl" "$previous_depth_lvl" true )
+
+	echo "$ul_and_li_tags"
+}
+

@@ -6,6 +6,13 @@
 # TLD	= top level directory (those appearing in the main menu).
 # SUBD	= sub-directory (those appearing in the sidebar).
 
+# Include the UL and LI tags utility.
+if [ ! -f "listmgr" ]; then
+	quit_with_error_msg \
+	  "Cannot find 'listmgr' in the project directory."
+fi
+. "./listmgr"
+
 # quit_with_usage_help()
 # quit_with_error_msg()
 # clean_output_folder_and_files()
@@ -184,47 +191,43 @@ generate_HTML_submenu_draft_for_given_TLD()
 	echo "  Creating sub-menu for $TLD_readable_name..."
 	draft_submenu_filepath=$( printf "%s/%s/sub-menu.html.tmp" \
 		"$OUTPUT_dir" "$TLD_name_no_prefix" )
-	previous_depth_count=1
-	just_started=true
-	printf "<ul>"  >> "$draft_submenu_filepath"
 
-	# Delve into subfolders.
-	find "$TLD" -type d \
-		! -path "$TLD" | sort -ndf | while read -r SUBD_folder;
-	do
+	# Retrieve folder tree.
+	tree=$( find "$TLD" -type d ! -path "$TLD" | sort -ndf )
+
+	printf "<ul>\n" >> "$draft_submenu_filepath"
+	curr_depth_lvl=1
+	previous_depth_lvl=1
+	just_started=true
+	while read -r SUBD_folder; do
 
 		SUBD_basename_no_prefix=$( basename "$SUBD_folder" \
 			| sed -E "$RegEx_remove_prefixes" )
 		SUBD_no_prefixes=$( echo "$SUBD_folder" \
 			| sed -E "$RegEx_remove_prefixes_root_too")
-		SUBD_depth_count=$(( $( echo "$SUBD_no_prefixes" \
+		curr_depth_lvl=$(( $( echo "$SUBD_no_prefixes" \
 			| tr '/' '\n' | wc -l ) -1 ))
 
 		SUBD_readable_name=$( get_human_readable_pagetitle \
 			"$SUBD_basename_no_prefix" "$SUBD_folder/index.md" )
 
 		# Add entry to the sub-menu.
-		close_previous=$(printf "</li>\n")
-		if [ "$just_started" ]; then
-			close_previous=""
-			just_started=false
-		fi
-		spaces=$( yes '  ' | head -n "$SUBD_depth_count" | tr -d '\n' )
-		if [ "$SUBD_depth_count" -gt "$previous_depth_count" ]; then
-			close_previous=$( printf "\n%s<ul>\n" "$spaces" )
-		elif [ "$SUBD_depth_count" -lt "$previous_depth_count" ]; then
-			close_previous=$( printf "</li>\n%s  </ul>\n%s</li>\n" \
-				"$spaces" "$spaces" )
-		fi
+		ul_and_li_tags=$( get_ul_and_li_tags \
+			$just_started "$curr_depth_lvl" "$previous_depth_lvl" )
+		printf "%s<a href=\"%s\">%s</a>" \
+			"$ul_and_li_tags" "/$SUBD_no_prefixes/" \
+			"$SUBD_readable_name" >> "$draft_submenu_filepath"
 
-		printf "%s\n%s<li><a href=\"%s\">%s</a>" "$close_previous" \
-			"$spaces" "/$SUBD_no_prefixes/" "$SUBD_readable_name" \
-			>> "$draft_submenu_filepath"
+		previous_depth_lvl=$curr_depth_lvl
 
-		previous_depth_count=$SUBD_depth_count
-	done
+	done <<TREE
+$tree
+TREE
 
-	printf "</li>\n</ul>\n" >> "$draft_submenu_filepath"
+	ul_and_li_tags=$( get_final_ul_and_li_tags "$previous_depth_lvl" )
+	printf "%s" "$ul_and_li_tags" >> "$draft_submenu_filepath"
+
+	printf "\n</ul>\n" >> "$draft_submenu_filepath"
 }
 
 generate_custom_main_menu()
