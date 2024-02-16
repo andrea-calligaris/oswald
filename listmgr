@@ -23,7 +23,8 @@ get_ul_and_li_tags()
 	is_the_whole_list_closing=${4:-false}
 
 	tags="</li>
-" # Literal new line; ugly, but '\n' doesn't work because it's discarded when at the end.
+" # Literal new line; ugly, but '\n' doesn't work because it's discarded when
+  # at the end.
 
 	spaces=$( yes "$SPACES_BLOCK" | head -n "$curr_depth_lvl" | tr -d '\n' )
 
@@ -39,11 +40,13 @@ get_ul_and_li_tags()
 		depth_diff=$(( previous_depth_lvl - curr_depth_lvl ))
 		for i in $(seq $depth_diff); do
 			subdcount=$(( previous_depth_lvl - i ))
-			spaces=$( yes "$SPACES_BLOCK" | head -n "$subdcount" | tr -d '\n' )
+			spaces=$( yes "$SPACES_BLOCK" | head -n "$subdcount" \
+				| tr -d '\n' )
 			tags=$( printf "%s\n%s%s</ul>\n%s</li>" \
 				"$tags" "$spaces" "$SPACES_BLOCK" "$spaces" )
 		done
-		spaces=$( yes "$SPACES_BLOCK" | head -n "$curr_depth_lvl" | tr -d '\n' )
+		spaces=$( yes "$SPACES_BLOCK" | head -n "$curr_depth_lvl" \
+			| tr -d '\n' )
 		if [ "$is_the_whole_list_closing" = false ]; then
 			tags=$( printf "%s\n%s" "$tags" "$spaces" )
 		else

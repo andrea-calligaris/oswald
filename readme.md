@@ -4,9 +4,9 @@ Fork of [_sw_](https://github.com/jroimartin/sw) with ordered menus and sub-menu
 
 ## Features
 
-- The shell script is POSIX and portable, and the commands and options used are fully **compatible with [_sbase_](https://core.suckless.org/sbase/).**
+- The shell scripts are _POSIX_ and portable, and the commands and options used are fully **compatible with [_sbase_](https://core.suckless.org/sbase/).**
 - Ordered menus and submenus with tree structure.
-- Accessibility features, and it looks good on _Lynx_.
+- Accessibility features, and it looks good on text browsers like _Lynx_.
 - Minimal responsive design.
 - Program options, including a debug option.
 
